@@ -36,14 +36,16 @@ class Temperature(nn.Module):
 
 
 @partial(jax.jit, static_argnames="apply_fn")
-def _sample_actions(rng, apply_fn, params, observations: np.ndarray):
+def _sample_actions(
+    rng, apply_fn, params, observations: np.ndarray
+) -> tuple[jnp.ndarray, Any]:
     key, rng = jax.random.split(rng)
     dist = apply_fn({"params": params}, observations)
     return dist.sample(seed=key), rng
 
 
 @partial(jax.jit, static_argnames="apply_fn")
-def _eval_actions(apply_fn, params, observations: np.ndarray):
+def _eval_actions(apply_fn, params, observations: np.ndarray) -> jnp.ndarray:
     dist = apply_fn({"params": params}, observations)
     return dist.mode()
 
@@ -145,7 +147,7 @@ class SAC(base.Agent):
             backup_entropy=backup_entropy,
         )
 
-    def update_actor(self, transitions: Transition):
+    def update_actor(self, transitions: Transition) -> tuple["SAC", LogDict]:
         key, rng = jax.random.split(self.rng)
         key2, rng = jax.random.split(rng)
 
@@ -172,7 +174,7 @@ class SAC(base.Agent):
 
         return self.replace(actor=actor, rng=rng), actor_info
 
-    def update_temperature(self, entropy: float):
+    def update_temperature(self, entropy: float) -> tuple["SAC", LogDict]:
         def temperature_loss_fn(temp_params):
             temperature = self.temp.apply_fn({"params": temp_params})
             temp_loss = temperature * (entropy - self.target_entropy).mean()
@@ -186,7 +188,7 @@ class SAC(base.Agent):
 
         return self.replace(temp=temp), temp_info
 
-    def update_critic(self, transitions: Transition):
+    def update_critic(self, transitions: Transition) -> tuple["SAC", LogDict]:
         dist = self.actor.apply_fn(
             {"params": self.actor.params}, transitions.next_observation
         )
