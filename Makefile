@@ -13,7 +13,7 @@ help:
 
 format:
 	black .
-	ruff . --fix
+	ruff . --fix --ignore E501
 	mypy --ignore-missing-imports .
 
 test:
