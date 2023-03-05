@@ -151,9 +151,9 @@ class TD3(base.Agent):
                 {"params": self.critic.params},
                 transitions.observation,
                 actions,
-                True,
+                True,  # training.
                 rngs={"dropout": key},
-            )  # training=True
+            )
             q = qs.mean(axis=0)
             actor_loss = -q.mean()
             return actor_loss, {"actor_loss": actor_loss}
@@ -196,9 +196,9 @@ class TD3(base.Agent):
             {"params": target_params},
             transitions.next_observation,
             next_actions,
-            True,
+            True,  # training.
             rngs={"dropout": key},
-        )  # training=True
+        )
         next_q = next_qs.min(axis=0)
 
         target_q = transitions.reward + self.discount * transitions.discount * next_q
@@ -210,9 +210,9 @@ class TD3(base.Agent):
                 {"params": critic_params},
                 transitions.observation,
                 transitions.action,
-                True,
+                True,  # training.
                 rngs={"dropout": key},
-            )  # training=True
+            )
             critic_loss = ((qs - target_q) ** 2).mean()
             return critic_loss, {"critic_loss": critic_loss, "q": qs.mean()}
 
