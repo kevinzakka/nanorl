@@ -17,7 +17,7 @@ from jaxrl.specs import EnvironmentSpec, zeros_like
 from jaxrl.types import LogDict, Transition
 
 
-@partial(jax.jit, static_argnames="apply_fn")
+@partial(jax.jit, static_argnames=["apply_fn", "sigma", "action_min", "action_max"])
 def _sample_actions(
     rng,
     apply_fn,
