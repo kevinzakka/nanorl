@@ -153,9 +153,9 @@ class SAC(base.Agent):
                 {"params": self.critic.params},
                 transitions.observation,
                 actions,
-                True,
+                True,  # training.
                 rngs={"dropout": key2},
-            )  # training=True
+            )
             q = qs.mean(axis=0)
             actor_loss = (
                 log_probs * self.temp.apply_fn({"params": self.temp.params}) - q
@@ -205,9 +205,9 @@ class SAC(base.Agent):
             {"params": target_params},
             transitions.next_observation,
             next_actions,
-            True,
+            True,  # training.
             rngs={"dropout": key},
-        )  # training=True
+        )
         next_q = next_qs.min(axis=0)
 
         target_q = transitions.reward + self.discount * transitions.discount * next_q
