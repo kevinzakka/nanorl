@@ -35,8 +35,6 @@ testing_requirements = [
 
 dev_requirements = [
     "black",
-    "isort",
-    "flake8",
     "mypy",
     "ruff",
 ] + testing_requirements
@@ -48,10 +46,7 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Natural Language :: English",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3 :: Only",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
@@ -77,12 +72,7 @@ setup(
     license="Apache License 2.0",
     license_files=("LICENSE",),
     packages=find_namespace_packages(exclude=["*_test.py"]),
-    package_data={
-        f"{name}": [
-            "py.typed",
-        ]
-    },
-    zip_safe=False,
+    package_data={f"{name}": ["py.typed"]},
     python_requires=">=3.10",
     install_requires=core_requirements,
     classifiers=classifiers,

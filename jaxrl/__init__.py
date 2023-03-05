@@ -1,8 +1,13 @@
 from jaxrl.agents.base import Agent
 from jaxrl.agents.sac import SAC
+from jaxrl.agents.td3 import TD3
 from jaxrl.config import Algo, SACConfig
-from jaxrl.distributions import (Normal, TanhDeterministic,
-                                 TanhMultivariateNormalDiag, TanhNormal)
+from jaxrl.distributions import (
+    Normal,
+    TanhDeterministic,
+    TanhMultivariateNormalDiag,
+    TanhNormal,
+)
 from jaxrl.networks import MLP, Ensemble, StateActionValue, subsample_ensemble
 from jaxrl.replay_buffer import ReplayBuffer, Transition
 from jaxrl.specs import EnvironmentSpec
@@ -22,6 +27,7 @@ __all__ = [
     "Transition",
     "EnvironmentSpec",
     "SAC",
+    "TD3",
     "Agent",
     "Algo",
     "SACConfig",
