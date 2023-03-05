@@ -28,7 +28,6 @@ def _sample_actions(
     key, rng = jax.random.split(rng)
     action = apply_fn({"params": params}, observations)
     noise = jax.random.normal(key, shape=action.shape) * sigma
-    # The below assumes a canonical action space.
     return jnp.clip(action + noise, -1.0, 1.0), rng
 
 
@@ -178,7 +177,6 @@ class TD3(base.Agent):
         key, rng = jax.random.split(rng)
         target_noise = jax.random.normal(key, next_actions.shape) * self.target_sigma
         target_noise = target_noise.clip(-self.noise_clip, self.noise_clip)
-        # The below assumes a canonical action space.
         next_actions = jnp.clip(next_actions + target_noise, -1, 1)
 
         # Used only for REDQ.
@@ -246,7 +244,6 @@ class TD3(base.Agent):
             lambda _: (new_agent, {"actor_loss": 0.0}),
             mini_transition,
         )
-        new_agent, actor_info = new_agent.update_actor(mini_transition)
 
         # Update steps.
         new_agent = new_agent.replace(steps=new_agent.steps + 1)
