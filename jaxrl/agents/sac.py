@@ -243,21 +243,33 @@ class SAC(base.Agent):
 
         return self.replace(critic=critic, target_critic=target_critic, rng=rng), info
 
-    @partial(jax.jit, static_argnames="utd_ratio")
-    def update(self, transitions: Transition, utd_ratio: int) -> tuple["SAC", LogDict]:
-
+    @partial(jax.jit, static_argnames=["critic_utd_ratio", "actor_utd_ratio"])
+    def update(
+        self, transitions: Transition, critic_utd_ratio: int, actor_utd_ratio: int
+    ) -> tuple["SAC", LogDict]:
         new_agent = self
-        for i in range(utd_ratio):
+
+        # Update critic.
+        for i in range(critic_utd_ratio):
 
             def slice(x):
-                assert x.shape[0] % utd_ratio == 0
-                batch_size = x.shape[0] // utd_ratio
+                batch_size = x.shape[0] // critic_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)
             new_agent, critic_info = new_agent.update_critic(mini_transition)
 
-        new_agent, actor_info = new_agent.update_actor(mini_transition)
+        # Update actor.
+        for i in range(actor_utd_ratio):
+
+            def slice(x):
+                batch_size = x.shape[0] // actor_utd_ratio
+                return x[batch_size * i : batch_size * (i + 1)]
+
+            mini_transition = jax.tree_util.tree_map(slice, transitions)
+            new_agent, actor_info = new_agent.update_actor(mini_transition)
+
+        # Update temperature.
         new_agent, temp_info = new_agent.update_temperature(actor_info["entropy"])
 
         return new_agent, {**actor_info, **critic_info, **temp_info}

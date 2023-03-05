@@ -232,29 +232,27 @@ class TD3(base.Agent):
     ) -> tuple["TD3", LogDict]:
         new_agent = self
 
-        # Critic update.
+        # Update critic.
         for i in range(critic_utd_ratio):
 
-            def slice(x):
-                assert x.shape[0] % critic_utd_ratio == 0
+            def slice(x: np.ndarray) -> np.ndarray:
                 batch_size = x.shape[0] // critic_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)
             new_agent, critic_info = new_agent.update_critic(mini_transition)
 
-        # Actor update.
+        # Update actor.
         for i in range(actor_utd_ratio):
 
-            def slice(x):
-                assert x.shape[0] % actor_utd_ratio == 0
+            def slice(x: np.ndarray) -> np.ndarray:
                 batch_size = x.shape[0] // actor_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)
-            new_agent, actor_info = new_agent.update_actor(transitions)
+            new_agent, actor_info = new_agent.update_actor(mini_transition)
 
-        return new_agent, {**actor_info, **critic_info}
+        return new_agent, {**critic_info, **actor_info}
 
     def sample_actions(self, observations: np.ndarray) -> tuple["TD3", np.ndarray]:
         actions, new_rng = _sample_actions(
