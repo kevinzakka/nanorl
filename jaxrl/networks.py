@@ -13,7 +13,7 @@ default_init = nn.initializers.xavier_uniform
 
 class MLP(nn.Module):
     hidden_dims: Sequence[int]
-    activations: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
+    activations: Callable[[jnp.ndarray], jnp.ndarray] = nn.gelu
     activate_final: bool = False
     use_layer_norm: bool = False
     dropout_rate: Optional[float] = None

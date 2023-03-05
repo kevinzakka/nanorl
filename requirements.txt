@@ -1,6 +1,0 @@
-flax
-optax
-distrax
-typing_extensions
-tensorflow
-protobuf==3.20.0
