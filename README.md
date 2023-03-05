@@ -5,5 +5,4 @@ A tiny reinforcement learning library written in JaX. Adapted from Ilya Kostriko
 ## Installation
 
 1. `pip install --upgrade "jax[cuda]" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html`
-2. `pip install -r requirements.txt`
-3. `pip install -e .`
+2. `pip install -e .`
