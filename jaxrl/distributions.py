@@ -68,6 +68,4 @@ class TanhDeterministic(nn.Module):
             self.action_dim, kernel_init=default_init(), name="OutputDenseMean"
         )(x)
 
-        means = nn.tanh(means)
-
-        return means
+        return nn.tanh(means)
