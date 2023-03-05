@@ -45,7 +45,6 @@ class TD3(base.Agent):
     rng: Any
     critic: TrainState
     target_critic: TrainState
-    temp: TrainState
     tau: float
     discount: float
     num_qs: int = struct.field(pytree_node=False)
