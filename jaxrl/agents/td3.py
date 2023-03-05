@@ -18,11 +18,19 @@ from jaxrl.types import LogDict, Transition
 
 
 @partial(jax.jit, static_argnames=["apply_fn"])
-def _sample_actions(rng, apply_fn, params, observations: np.ndarray, sigma: float):
+def _sample_actions(
+    rng,
+    apply_fn,
+    params,
+    observations: np.ndarray,
+    sigma: float,
+    action_min: np.ndarray,
+    action_max: np.ndarray,
+):
     key, rng = jax.random.split(rng)
     action = apply_fn({"params": params}, observations)
     noise = jax.random.normal(key, shape=action.shape) * sigma
-    return action + noise, rng
+    return jnp.clip(action + noise, action_min, action_max), rng
 
 
 @partial(jax.jit, static_argnames="apply_fn")
@@ -61,7 +69,7 @@ class TD3(base.Agent):
         num_min_qs: Optional[int] = None,
         critic_dropout_rate: Optional[float] = None,
         critic_layer_norm: bool = False,
-        sigma: float = 0.2,
+        sigma: float = 0.1,
         target_sigma: float = 0.2,
         noise_clip: float = 0.5,
     ) -> "TD3":
@@ -164,7 +172,7 @@ class TD3(base.Agent):
         rng = self.rng
 
         next_actions = self.target_actor.apply_fn(
-            {"params": self.target_actor.params}, transitions.observation
+            {"params": self.target_actor.params}, transitions.next_observation
         )
 
         key, rng = jax.random.split(rng)
@@ -248,9 +256,14 @@ class TD3(base.Agent):
 
     def sample_actions(self, observations: np.ndarray) -> tuple["TD3", np.ndarray]:
         actions, new_rng = _sample_actions(
-            self.rng, self.actor.apply_fn, self.actor.params, observations, self.sigma
+            self.rng,
+            self.actor.apply_fn,
+            self.actor.params,
+            observations,
+            self.sigma,
+            self.action_min,
+            self.action_max,
         )
-        actions = jnp.clip(actions, self.action_min, self.action_max)
         return self.replace(rng=new_rng), np.asarray(actions)
 
     def eval_actions(self, observations: np.ndarray) -> np.ndarray:
