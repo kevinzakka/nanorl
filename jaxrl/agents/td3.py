@@ -24,11 +24,13 @@ def _sample_actions(
     params,
     observations: np.ndarray,
     sigma: float,
+    action_min: np.ndarray,
+    action_max: np.ndarray,
 ):
     key, rng = jax.random.split(rng)
     action = apply_fn({"params": params}, observations)
     noise = jax.random.normal(key, shape=action.shape) * sigma
-    return jnp.clip(action + noise, -1.0, 1.0), rng
+    return jnp.clip(action + noise, action_min, action_max), rng
 
 
 @partial(jax.jit, static_argnames="apply_fn")
@@ -49,10 +51,10 @@ class TD3(base.Agent):
     num_qs: int = struct.field(pytree_node=False)
     num_min_qs: Optional[int] = struct.field(pytree_node=False)
     sigma: float
-    delay: int
     target_sigma: float
     noise_clip: float
-    steps: int
+    action_min: np.ndarray
+    action_max: np.ndarray
 
     @staticmethod
     def initialize(
@@ -68,7 +70,6 @@ class TD3(base.Agent):
         critic_dropout_rate: Optional[float] = None,
         critic_layer_norm: bool = False,
         sigma: float = 0.2,
-        delay: int = 2,
         target_sigma: float = 0.2,
         noise_clip: float = 0.5,
     ) -> "TD3":
@@ -133,10 +134,10 @@ class TD3(base.Agent):
             num_qs=num_qs,
             num_min_qs=num_min_qs,
             sigma=sigma,
-            delay=delay,
             target_sigma=target_sigma,
             noise_clip=noise_clip,
-            steps=0,
+            action_min=spec.action.minimum,
+            action_max=spec.action.maximum,
         )
 
     def update_actor(self, transitions: Transition):
@@ -177,7 +178,9 @@ class TD3(base.Agent):
         key, rng = jax.random.split(rng)
         target_noise = jax.random.normal(key, next_actions.shape) * self.target_sigma
         target_noise = target_noise.clip(-self.noise_clip, self.noise_clip)
-        next_actions = jnp.clip(next_actions + target_noise, -1, 1)
+        next_actions = jnp.clip(
+            next_actions + target_noise, self.action_min, self.action_max
+        )
 
         # Used only for REDQ.
         key, rng = jax.random.split(rng)
@@ -223,30 +226,33 @@ class TD3(base.Agent):
 
         return self.replace(critic=critic, target_critic=target_critic, rng=rng), info
 
-    @partial(jax.jit, static_argnames="utd_ratio")
-    def update(self, transitions: Transition, utd_ratio: int) -> tuple["TD3", LogDict]:
-
+    @partial(jax.jit, static_argnames=["critic_utd_ratio", "actor_utd_ratio"])
+    def update(
+        self, transitions: Transition, critic_utd_ratio: int, actor_utd_ratio: int
+    ) -> tuple["TD3", LogDict]:
         new_agent = self
-        for i in range(utd_ratio):
+
+        # Critic update.
+        for i in range(critic_utd_ratio):
 
             def slice(x):
-                assert x.shape[0] % utd_ratio == 0
-                batch_size = x.shape[0] // utd_ratio
+                assert x.shape[0] % critic_utd_ratio == 0
+                batch_size = x.shape[0] // critic_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)
             new_agent, critic_info = new_agent.update_critic(mini_transition)
 
-        # Delayed actor update.
-        new_agent, actor_info = jax.lax.cond(
-            new_agent.steps % new_agent.delay == 0,
-            new_agent.update_actor,
-            lambda _: (new_agent, {"actor_loss": 0.0}),
-            mini_transition,
-        )
+        # Actor update.
+        for i in range(actor_utd_ratio):
 
-        # Update steps.
-        new_agent = new_agent.replace(steps=new_agent.steps + 1)
+            def slice(x):
+                assert x.shape[0] % actor_utd_ratio == 0
+                batch_size = x.shape[0] // actor_utd_ratio
+                return x[batch_size * i : batch_size * (i + 1)]
+
+            mini_transition = jax.tree_util.tree_map(slice, transitions)
+            new_agent, actor_info = new_agent.update_actor(transitions)
 
         return new_agent, {**actor_info, **critic_info}
 
@@ -257,6 +263,8 @@ class TD3(base.Agent):
             self.actor.params,
             observations,
             self.sigma,
+            self.action_min,
+            self.action_max,
         )
         return self.replace(rng=new_rng), np.asarray(actions)
 

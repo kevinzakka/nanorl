@@ -36,7 +36,6 @@ class TD3Config:
     critic_layer_norm: bool = False
     tau: float = 0.005
     sigma: float = 0.1
-    delay: int = 2
     target_sigma: float = 0.2
     noise_clip: float = 0.5
 
