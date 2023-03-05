@@ -17,14 +17,8 @@ from jaxrl.specs import EnvironmentSpec, zeros_like
 from jaxrl.types import LogDict, Transition
 
 
-@partial(jax.jit, static_argnames=["apply_fn", "sigma"])
-def _sample_actions(
-    rng,
-    apply_fn,
-    params,
-    observations: np.ndarray,
-    sigma: float,
-):
+@partial(jax.jit, static_argnames=["apply_fn"])
+def _sample_actions(rng, apply_fn, params, observations: np.ndarray, sigma: float):
     key, rng = jax.random.split(rng)
     action = apply_fn({"params": params}, observations)
     noise = jax.random.normal(key, shape=action.shape) * sigma
