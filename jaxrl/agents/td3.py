@@ -17,20 +17,18 @@ from jaxrl.specs import EnvironmentSpec, zeros_like
 from jaxrl.types import LogDict, Transition
 
 
-@partial(jax.jit, static_argnames=["apply_fn", "sigma", "action_min", "action_max"])
+@partial(jax.jit, static_argnames=["apply_fn", "sigma"])
 def _sample_actions(
     rng,
     apply_fn,
     params,
     observations: np.ndarray,
     sigma: float,
-    action_min: np.ndarray,
-    action_max: np.ndarray,
 ):
     key, rng = jax.random.split(rng)
     action = apply_fn({"params": params}, observations)
     noise = jax.random.normal(key, shape=action.shape) * sigma
-    return jnp.clip(action + noise, action_min, action_max), rng
+    return action + noise, rng
 
 
 @partial(jax.jit, static_argnames="apply_fn")
@@ -256,14 +254,9 @@ class TD3(base.Agent):
 
     def sample_actions(self, observations: np.ndarray) -> tuple["TD3", np.ndarray]:
         actions, new_rng = _sample_actions(
-            self.rng,
-            self.actor.apply_fn,
-            self.actor.params,
-            observations,
-            self.sigma,
-            self.action_min,
-            self.action_max,
+            self.rng, self.actor.apply_fn, self.actor.params, observations, self.sigma
         )
+        actions = jnp.clip(actions, self.action_min, self.action_max)
         return self.replace(rng=new_rng), np.asarray(actions)
 
     def eval_actions(self, observations: np.ndarray) -> np.ndarray:
