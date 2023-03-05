@@ -1,9 +1,8 @@
-"""Soft Actor-Critic implementation."""
+"""Twin Delayed Deep Deterministic policy gradient implementation."""
 
 from functools import partial
 from typing import Any, Optional, Sequence
 
-import flax.linen as nn
 import jax
 import jax.numpy as jnp
 import numpy as np
@@ -12,51 +11,50 @@ from flax import struct
 from flax.training.train_state import TrainState
 
 from jaxrl.agents import base
-from jaxrl.distributions import TanhNormal
+from jaxrl.distributions import TanhDeterministic
 from jaxrl.networks import MLP, Ensemble, StateActionValue, subsample_ensemble
 from jaxrl.specs import EnvironmentSpec, zeros_like
 from jaxrl.types import LogDict, Transition
 
 
-class Temperature(nn.Module):
-    initial_temperature: float = 1.0
-
-    @nn.compact
-    def __call__(self) -> jnp.ndarray:
-        log_temp = self.param(
-            "log_temp",
-            init_fn=lambda _: jnp.full((), jnp.log(self.initial_temperature)),
-        )
-        return jnp.exp(log_temp)
-
-
 @partial(jax.jit, static_argnames="apply_fn")
-def _sample_actions(rng, apply_fn, params, observations: np.ndarray):
+def _sample_actions(
+    rng,
+    apply_fn,
+    params,
+    observations: np.ndarray,
+    sigma: float,
+):
     key, rng = jax.random.split(rng)
-    dist = apply_fn({"params": params}, observations)
-    return dist.sample(seed=key), rng
+    action = apply_fn({"params": params}, observations)
+    noise = jax.random.normal(key, shape=action.shape) * sigma
+    # The below assumes a canonical action space.
+    return jnp.clip(action + noise, -1.0, 1.0), rng
 
 
 @partial(jax.jit, static_argnames="apply_fn")
 def _eval_actions(apply_fn, params, observations: np.ndarray):
-    dist = apply_fn({"params": params}, observations)
-    return dist.mode()
+    return apply_fn({"params": params}, observations)
 
 
-class SAC(base.Agent):
-    """Soft-Actor Critic (SAC)."""
+class TD3(base.Agent):
+    """Twin Delayed Deep Deterministic policy gradient (TD3)."""
 
     actor: TrainState
+    target_actor: TrainState
     rng: Any
     critic: TrainState
     target_critic: TrainState
     temp: TrainState
     tau: float
     discount: float
-    target_entropy: float
     num_qs: int = struct.field(pytree_node=False)
     num_min_qs: Optional[int] = struct.field(pytree_node=False)
-    backup_entropy: bool = struct.field(pytree_node=False)
+    sigma: float
+    delay: int
+    target_sigma: float
+    noise_clip: float
+    steps: int
 
     @staticmethod
     def initialize(
@@ -64,7 +62,6 @@ class SAC(base.Agent):
         seed: int,
         actor_lr: float = 3e-4,
         critic_lr: float = 3e-4,
-        temp_lr: float = 3e-4,
         hidden_dims: Sequence[int] = (256, 256),
         discount: float = 0.99,
         tau: float = 0.005,
@@ -72,23 +69,22 @@ class SAC(base.Agent):
         num_min_qs: Optional[int] = None,
         critic_dropout_rate: Optional[float] = None,
         critic_layer_norm: bool = False,
-        target_entropy: Optional[float] = None,
-        init_temperature: float = 1.0,
-        backup_entropy: bool = True,
-    ) -> "SAC":
+        sigma: float = 0.2,
+        delay: int = 2,
+        target_sigma: float = 0.2,
+        noise_clip: float = 0.5,
+    ) -> "TD3":
 
         action_dim = spec.action.shape[-1]
         observations = zeros_like(spec.observation)
         actions = zeros_like(spec.action)
 
-        if target_entropy is None:
-            target_entropy = -0.5 * action_dim
-
         rng = jax.random.PRNGKey(seed)
-        rng, actor_key, critic_key, temp_key = jax.random.split(rng, 4)
+        rng, actor_key, critic_key = jax.random.split(rng, 3)
 
+        # Actor.
         actor_base_cls = partial(MLP, hidden_dims=hidden_dims, activate_final=True)
-        actor_def = TanhNormal(actor_base_cls, action_dim)
+        actor_def = TanhDeterministic(actor_base_cls, action_dim)
         actor_params = actor_def.init(actor_key, observations)["params"]
         actor = TrainState.create(
             apply_fn=actor_def.apply,
@@ -96,6 +92,14 @@ class SAC(base.Agent):
             tx=optax.adam(learning_rate=actor_lr),
         )
 
+        # Target actor.
+        target_actor = TrainState.create(
+            apply_fn=actor_def.apply,
+            params=actor_params,
+            tx=optax.GradientTransformation(lambda _: None, lambda _: None),
+        )
+
+        # Critic.
         critic_base_cls = partial(
             MLP,
             hidden_dims=hidden_dims,
@@ -111,6 +115,8 @@ class SAC(base.Agent):
             params=critic_params,
             tx=optax.adam(learning_rate=critic_lr),
         )
+
+        # Target critic.
         target_critic_def = Ensemble(critic_cls, num=num_min_qs or num_qs)
         target_critic = TrainState.create(
             apply_fn=target_critic_def.apply,
@@ -118,78 +124,63 @@ class SAC(base.Agent):
             tx=optax.GradientTransformation(lambda _: None, lambda _: None),
         )
 
-        temp_def = Temperature(init_temperature)
-        temp_params = temp_def.init(temp_key)["params"]
-        temp = TrainState.create(
-            apply_fn=temp_def.apply,
-            params=temp_params,
-            tx=optax.adam(learning_rate=temp_lr),
-        )
-
-        return SAC(
+        return TD3(
             actor=actor,
+            target_actor=target_actor,
             rng=rng,
             critic=critic,
             target_critic=target_critic,
-            temp=temp,
-            target_entropy=target_entropy,
             tau=tau,
             discount=discount,
             num_qs=num_qs,
             num_min_qs=num_min_qs,
-            backup_entropy=backup_entropy,
+            sigma=sigma,
+            delay=delay,
+            target_sigma=target_sigma,
+            noise_clip=noise_clip,
+            steps=0,
         )
 
     def update_actor(self, transitions: Transition):
         key, rng = jax.random.split(self.rng)
-        key2, rng = jax.random.split(rng)
 
         def actor_loss_fn(actor_params):
-            dist = self.actor.apply_fn(
+            actions = self.actor.apply_fn(
                 {"params": actor_params}, transitions.observation
             )
-            actions, log_probs = dist.sample_and_log_prob(seed=key)
             qs = self.critic.apply_fn(
                 {"params": self.critic.params},
                 transitions.observation,
                 actions,
                 True,
-                rngs={"dropout": key2},
+                rngs={"dropout": key},
             )  # training=True
             q = qs.mean(axis=0)
-            actor_loss = (
-                log_probs * self.temp.apply_fn({"params": self.temp.params}) - q
-            ).mean()
-            return actor_loss, {"actor_loss": actor_loss, "entropy": -log_probs.mean()}
+            actor_loss = -q.mean()
+            return actor_loss, {"actor_loss": actor_loss}
 
         grads, actor_info = jax.grad(actor_loss_fn, has_aux=True)(self.actor.params)
         actor = self.actor.apply_gradients(grads=grads)
 
-        return self.replace(actor=actor, rng=rng), actor_info
+        target_actor_params = optax.incremental_update(
+            actor.params, self.target_actor.params, self.tau
+        )
+        target_actor = self.target_actor.replace(params=target_actor_params)
 
-    def update_temperature(self, entropy: float):
-        def temperature_loss_fn(temp_params):
-            temperature = self.temp.apply_fn({"params": temp_params})
-            temp_loss = temperature * (entropy - self.target_entropy).mean()
-            return temp_loss, {
-                "temperature": temperature,
-                "temperature_loss": temp_loss,
-            }
-
-        grads, temp_info = jax.grad(temperature_loss_fn, has_aux=True)(self.temp.params)
-        temp = self.temp.apply_gradients(grads=grads)
-
-        return self.replace(temp=temp), temp_info
+        return self.replace(actor=actor, target_actor=target_actor, rng=rng), actor_info
 
     def update_critic(self, transitions: Transition):
-        dist = self.actor.apply_fn(
-            {"params": self.actor.params}, transitions.next_observation
-        )
-
         rng = self.rng
 
+        next_actions = self.target_actor.apply_fn(
+            {"params": self.target_actor.params}, transitions.observation
+        )
+
         key, rng = jax.random.split(rng)
-        next_actions, next_log_probs = dist.sample_and_log_prob(seed=key)
+        target_noise = jax.random.normal(key, next_actions.shape) * self.target_sigma
+        target_noise = target_noise.clip(-self.noise_clip, self.noise_clip)
+        # The below assumes a canonical action space.
+        next_actions = jnp.clip(next_actions + target_noise, -1, 1)
 
         # Used only for REDQ.
         key, rng = jax.random.split(rng)
@@ -211,14 +202,6 @@ class SAC(base.Agent):
         next_q = next_qs.min(axis=0)
 
         target_q = transitions.reward + self.discount * transitions.discount * next_q
-
-        if self.backup_entropy:
-            target_q -= (
-                self.discount
-                * transitions.discount
-                * self.temp.apply_fn({"params": self.temp.params})
-                * next_log_probs
-            )
 
         key, rng = jax.random.split(rng)
 
@@ -244,7 +227,7 @@ class SAC(base.Agent):
         return self.replace(critic=critic, target_critic=target_critic, rng=rng), info
 
     @partial(jax.jit, static_argnames="utd_ratio")
-    def update(self, transitions: Transition, utd_ratio: int) -> tuple["SAC", LogDict]:
+    def update(self, transitions: Transition, utd_ratio: int) -> tuple["TD3", LogDict]:
 
         new_agent = self
         for i in range(utd_ratio):
@@ -257,14 +240,27 @@ class SAC(base.Agent):
             mini_transition = jax.tree_util.tree_map(slice, transitions)
             new_agent, critic_info = new_agent.update_critic(mini_transition)
 
+        # Delayed actor update.
+        new_agent, actor_info = jax.lax.cond(
+            new_agent.steps % new_agent.delay == 0,
+            new_agent.update_actor,
+            lambda _: (new_agent, {"actor_loss": 0.0}),
+            mini_transition,
+        )
         new_agent, actor_info = new_agent.update_actor(mini_transition)
-        new_agent, temp_info = new_agent.update_temperature(actor_info["entropy"])
 
-        return new_agent, {**actor_info, **critic_info, **temp_info}
+        # Update steps.
+        new_agent = new_agent.replace(steps=new_agent.steps + 1)
 
-    def sample_actions(self, observations: np.ndarray) -> tuple["SAC", np.ndarray]:
+        return new_agent, {**actor_info, **critic_info}
+
+    def sample_actions(self, observations: np.ndarray) -> tuple["TD3", np.ndarray]:
         actions, new_rng = _sample_actions(
-            self.rng, self.actor.apply_fn, self.actor.params, observations
+            self.rng,
+            self.actor.apply_fn,
+            self.actor.params,
+            observations,
+            self.sigma,
         )
         return self.replace(rng=new_rng), np.asarray(actions)
 
