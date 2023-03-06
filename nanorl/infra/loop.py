@@ -5,9 +5,9 @@ from typing import Any, Callable
 import dm_env
 import tqdm
 import wandb
-from jaxrl import agent, replay, specs
+from nanorl import agent, replay, specs
 
-from jaxrl.infra import Experiment, utils
+from nanorl.infra import Experiment, utils
 
 
 EnvFn = Callable[[], dm_env.Environment]

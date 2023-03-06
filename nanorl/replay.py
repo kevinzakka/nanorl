@@ -9,8 +9,8 @@ import dm_env
 import numpy as np
 import psutil
 
-from jaxrl.specs import EnvironmentSpec
-from jaxrl.types import Transition
+from nanorl.specs import EnvironmentSpec
+from nanorl.types import Transition
 
 
 class _CircularBuffer:

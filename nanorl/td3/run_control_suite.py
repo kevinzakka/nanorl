@@ -10,15 +10,15 @@ import tyro
 import wandb
 from dm_control import suite
 
-from jaxrl import replay, specs
-from jaxrl import TD3, TD3Config
-from jaxrl.infra import seed_rngs, Experiment, train_loop, eval_loop, wrap_env
+from nanorl import replay, specs
+from nanorl import TD3, TD3Config
+from nanorl.infra import seed_rngs, Experiment, train_loop, eval_loop, wrap_env
 
 
 @dataclass(frozen=True)
 class Args:
     # Experiment configuration.
-    root_dir: str = "/tmp/jaxrl"
+    root_dir: str = "/tmp/nanorl"
     """Where experiment directories are created."""
     seed: int = 42
     """RNG seed."""
@@ -54,7 +54,7 @@ class Args:
     """Percentage of offline data to use."""
 
     # W&B configuration.
-    project: str = "jaxrl"
+    project: str = "nanorl"
     name: str = ""
     tags: str = ""
     notes: str = ""

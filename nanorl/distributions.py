@@ -7,7 +7,7 @@ import distrax
 import flax.linen as nn
 import jax.numpy as jnp
 
-from jaxrl.networks import default_init
+from nanorl.networks import default_init
 
 
 class TanhMultivariateNormalDiag(distrax.Transformed):

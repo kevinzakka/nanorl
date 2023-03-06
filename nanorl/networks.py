@@ -6,7 +6,7 @@ import flax.linen as nn
 import jax
 import jax.numpy as jnp
 
-from jaxrl import types
+from nanorl import types
 
 default_init = nn.initializers.xavier_uniform
 

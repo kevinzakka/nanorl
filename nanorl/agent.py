@@ -6,7 +6,7 @@ from typing import Tuple
 import numpy as np
 from flax import struct
 
-from jaxrl.types import LogDict, Transition
+from nanorl.types import LogDict, Transition
 
 
 class Agent(abc.ABC, struct.PyTreeNode):

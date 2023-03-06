@@ -1,7 +1,7 @@
-"""Training infrastructure for jaxrl."""
+"""Training infrastructure."""
 
-from jaxrl.infra.experiment import Experiment
-from jaxrl.infra.utils import (
+from nanorl.infra.experiment import Experiment
+from nanorl.infra.utils import (
     FpsCounter,
     get_latest_video,
     prefix_dict,
@@ -11,7 +11,7 @@ from jaxrl.infra.utils import (
     seed_rngs,
     wrap_env,
 )
-from jaxrl.infra.loop import train_loop, eval_loop
+from nanorl.infra.loop import train_loop, eval_loop
 
 __all__ = [
     "Experiment",

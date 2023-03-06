@@ -77,7 +77,7 @@ def merge_dict(d1: dict, d2: dict) -> dict:
 
 
 def atomic_save(save_path: Path, obj: Any) -> None:
-    # Ignore ctrl+c while saving.
+    # Ignore nanorl+c while saving.
     try:
         orig_handler = signal.getsignal(signal.SIGINT)
         signal.signal(signal.SIGINT, lambda _sig, _frame: None)
