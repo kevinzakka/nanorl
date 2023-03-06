@@ -1,5 +1,7 @@
 """Soft Actor-Critic implementation."""
 
+from dataclasses import dataclass
+
 from functools import partial
 from typing import Any, Optional, Sequence
 
@@ -11,11 +13,11 @@ import optax
 from flax import struct
 from flax.training.train_state import TrainState
 
-from jaxrl.agents import base
-from jaxrl.distributions import TanhNormal
-from jaxrl.networks import MLP, Ensemble, StateActionValue, subsample_ensemble
-from jaxrl.specs import EnvironmentSpec, zeros_like
-from jaxrl.types import LogDict, Transition
+from nanorl import agent
+from nanorl.distributions import TanhNormal
+from nanorl.networks import MLP, Ensemble, StateActionValue, subsample_ensemble
+from nanorl.specs import EnvironmentSpec, zeros_like
+from nanorl.types import LogDict, Transition
 
 
 class Temperature(nn.Module):
@@ -45,7 +47,27 @@ def _eval_actions(apply_fn, params, observations: np.ndarray) -> jnp.ndarray:
     return dist.mode()
 
 
-class SAC(base.Agent):
+@dataclass(frozen=True)
+class SACConfig:
+    """Configuration options for SAC."""
+
+    num_qs: int = 2
+    actor_lr: float = 3e-4
+    critic_lr: float = 3e-4
+    temp_lr: float = 3e-4
+    hidden_dims: Sequence[int] = (256, 256, 256)
+    num_min_qs: Optional[int] = None
+    critic_dropout_rate: Optional[float] = None
+    critic_layer_norm: bool = False
+    tau: float = 0.005
+    target_entropy: Optional[float] = None
+    init_temperature: float = 1.0
+    backup_entropy: bool = True
+    critic_utd_ratio: int = 1
+    actor_utd_ratio: int = 1
+
+
+class SAC(agent.Agent):
     """Soft-Actor Critic (SAC)."""
 
     actor: TrainState
@@ -53,9 +75,11 @@ class SAC(base.Agent):
     critic: TrainState
     target_critic: TrainState
     temp: TrainState
-    tau: float
-    discount: float
-    target_entropy: float
+    tau: float = struct.field(pytree_node=False)
+    discount: float = struct.field(pytree_node=False)
+    target_entropy: float = struct.field(pytree_node=False)
+    critic_utd_ratio: int = struct.field(pytree_node=False)
+    actor_utd_ratio: int = struct.field(pytree_node=False)
     num_qs: int = struct.field(pytree_node=False)
     num_min_qs: Optional[int] = struct.field(pytree_node=False)
     backup_entropy: bool = struct.field(pytree_node=False)
@@ -63,69 +87,61 @@ class SAC(base.Agent):
     @staticmethod
     def initialize(
         spec: EnvironmentSpec,
-        seed: int,
-        actor_lr: float = 3e-4,
-        critic_lr: float = 3e-4,
-        temp_lr: float = 3e-4,
-        hidden_dims: Sequence[int] = (256, 256),
+        config: SACConfig,
+        seed: int = 0,
         discount: float = 0.99,
-        tau: float = 0.005,
-        num_qs: int = 2,
-        num_min_qs: Optional[int] = None,
-        critic_dropout_rate: Optional[float] = None,
-        critic_layer_norm: bool = False,
-        target_entropy: Optional[float] = None,
-        init_temperature: float = 1.0,
-        backup_entropy: bool = True,
     ) -> "SAC":
+        """Initializes the agent from the given environment spec and config."""
 
         action_dim = spec.action.shape[-1]
         observations = zeros_like(spec.observation)
         actions = zeros_like(spec.action)
 
-        if target_entropy is None:
+        if config.target_entropy is None:
             target_entropy = -0.5 * action_dim
 
         rng = jax.random.PRNGKey(seed)
         rng, actor_key, critic_key, temp_key = jax.random.split(rng, 4)
 
-        actor_base_cls = partial(MLP, hidden_dims=hidden_dims, activate_final=True)
+        actor_base_cls = partial(
+            MLP, hidden_dims=config.hidden_dims, activate_final=True
+        )
         actor_def = TanhNormal(actor_base_cls, action_dim)
         actor_params = actor_def.init(actor_key, observations)["params"]
         actor = TrainState.create(
             apply_fn=actor_def.apply,
             params=actor_params,
-            tx=optax.adam(learning_rate=actor_lr),
+            tx=optax.adam(learning_rate=config.actor_lr),
         )
 
         critic_base_cls = partial(
             MLP,
-            hidden_dims=hidden_dims,
+            hidden_dims=config.hidden_dims,
             activate_final=True,
-            dropout_rate=critic_dropout_rate,
-            use_layer_norm=critic_layer_norm,
+            dropout_rate=config.critic_dropout_rate,
+            use_layer_norm=config.critic_layer_norm,
         )
         critic_cls = partial(StateActionValue, base_cls=critic_base_cls)
-        critic_def = Ensemble(critic_cls, num=num_qs)
+        critic_def = Ensemble(critic_cls, num=config.num_qs)
         critic_params = critic_def.init(critic_key, observations, actions)["params"]
         critic = TrainState.create(
             apply_fn=critic_def.apply,
             params=critic_params,
-            tx=optax.adam(learning_rate=critic_lr),
+            tx=optax.adam(learning_rate=config.critic_lr),
         )
-        target_critic_def = Ensemble(critic_cls, num=num_min_qs or num_qs)
+        target_critic_def = Ensemble(critic_cls, num=config.num_min_qs or config.num_qs)
         target_critic = TrainState.create(
             apply_fn=target_critic_def.apply,
             params=critic_params,
             tx=optax.GradientTransformation(lambda _: None, lambda _: None),
         )
 
-        temp_def = Temperature(init_temperature)
+        temp_def = Temperature(config.init_temperature)
         temp_params = temp_def.init(temp_key)["params"]
         temp = TrainState.create(
             apply_fn=temp_def.apply,
             params=temp_params,
-            tx=optax.adam(learning_rate=temp_lr),
+            tx=optax.adam(learning_rate=config.temp_lr),
         )
 
         return SAC(
@@ -135,11 +151,13 @@ class SAC(base.Agent):
             target_critic=target_critic,
             temp=temp,
             target_entropy=target_entropy,
-            tau=tau,
+            tau=config.tau,
             discount=discount,
-            num_qs=num_qs,
-            num_min_qs=num_min_qs,
-            backup_entropy=backup_entropy,
+            num_qs=config.num_qs,
+            num_min_qs=config.num_min_qs,
+            backup_entropy=config.backup_entropy,
+            critic_utd_ratio=config.critic_utd_ratio,
+            actor_utd_ratio=config.actor_utd_ratio,
         )
 
     def update_actor(self, transitions: Transition) -> tuple["SAC", LogDict]:
@@ -245,27 +263,25 @@ class SAC(base.Agent):
 
         return self.replace(critic=critic, target_critic=target_critic, rng=rng), info
 
-    @partial(jax.jit, static_argnames=["critic_utd_ratio", "actor_utd_ratio"])
-    def update(
-        self, transitions: Transition, critic_utd_ratio: int, actor_utd_ratio: int
-    ) -> tuple["SAC", LogDict]:
+    @jax.jit
+    def update(self, transitions: Transition) -> tuple["SAC", LogDict]:
         new_agent = self
 
         # Update critic.
-        for i in range(critic_utd_ratio):
+        for i in range(self.critic_utd_ratio):
 
             def slice(x):
-                batch_size = x.shape[0] // critic_utd_ratio
+                batch_size = x.shape[0] // self.critic_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)
             new_agent, critic_info = new_agent.update_critic(mini_transition)
 
         # Update actor.
-        for i in range(actor_utd_ratio):
+        for i in range(self.actor_utd_ratio):
 
             def slice(x):
-                batch_size = x.shape[0] // actor_utd_ratio
+                batch_size = x.shape[0] // self.actor_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)

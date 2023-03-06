@@ -6,7 +6,7 @@ from typing import Tuple
 import numpy as np
 from flax import struct
 
-from jaxrl.types import LogDict, Transition
+from nanorl.types import LogDict, Transition
 
 
 class Agent(abc.ABC, struct.PyTreeNode):
@@ -15,18 +15,16 @@ class Agent(abc.ABC, struct.PyTreeNode):
     @staticmethod
     @abc.abstractmethod
     def initialize(*args, **kwargs) -> "Agent":
-        ...
+        """Initializes the agent."""
 
     @abc.abstractmethod
-    def update(
-        self, transitions: Transition, *args, **kwargs
-    ) -> tuple["Agent", LogDict]:
-        ...
+    def update(self, transitions: Transition) -> tuple["Agent", LogDict]:
+        """Updates the agent's parameters given a batch of transitions."""
 
     @abc.abstractmethod
     def sample_actions(self, observations: np.ndarray) -> Tuple["Agent", np.ndarray]:
-        ...
+        """Selects actions given observations during training."""
 
     @abc.abstractmethod
     def eval_actions(self, observations: np.ndarray) -> np.ndarray:
-        ...
+        """Selects actions given observations during evaluation."""
