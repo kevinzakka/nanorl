@@ -25,7 +25,7 @@ core_requirements = [
     "dm_env>=1.6",
     "flax",
     "optax",
-    # "tensorflow",
+    "tensorflow",
 ]
 
 # Requirements for nanorl.infra.

@@ -1,0 +1,4 @@
+optax==0.1.4
+tensorflow==2.9.0
+distrax==0.1.2
+flax==0.6.2
