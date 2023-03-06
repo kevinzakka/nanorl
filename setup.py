@@ -19,25 +19,37 @@ with open(_here / name / "__init__.py") as f:
 with open(_here / "README.md", "r") as f:
     readme = f.read()
 
+# Minimum requirements for nanorl to import and run.
 core_requirements = [
+    "distrax",
+    "dm_env>=1.6",
     "flax",
     "optax",
-    "distrax",
-    "typing_extensions",
-    "tensorflow",
-    "protobuf==3.20.0",
+    # "tensorflow",
 ]
 
-testing_requirements = [
-    "absl-py",
-    "pytest",
+# Requirements for nanorl.infra.
+infra_requirements = [
+    "psutil>=5.9.4",
+    "tyro>=0.4.0",
+    "wandb>=0.13.10",
 ]
 
+# Requirements for `run_control_suite.py`.
+control_suite_requirements = [
+    "dm_control>=1.0.10",
+    "dm_env_wrappers>=0.0.7",
+    "mujoco>=2.3.2",
+]
+
+# Requirements for development (use the Makefile for convenience).
 dev_requirements = [
     "black",
     "mypy",
     "ruff",
-] + testing_requirements
+]
+
+all_requirements = infra_requirements + control_suite_requirements + dev_requirements
 
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -77,7 +89,9 @@ setup(
     install_requires=core_requirements,
     classifiers=classifiers,
     extras_require={
-        "testing": testing_requirements,
+        "control_suite": control_suite_requirements,
+        "infra": infra_requirements,
         "dev": dev_requirements,
+        "all": all_requirements,
     },
 )
