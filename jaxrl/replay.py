@@ -1,4 +1,4 @@
-"""Replay buffer module."""
+"""Replay module."""
 
 import pickle
 import random
