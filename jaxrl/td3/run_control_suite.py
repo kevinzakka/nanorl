@@ -17,10 +17,7 @@ from jaxrl.infra import seed_rngs, Experiment, train_loop, eval_loop, wrap_env
 
 @dataclass(frozen=True)
 class Args:
-    domain_name: str = "cartpole"
-    """Which domain to use."""
-    task_name: str = "swingup"
-    """Which task to use."""
+    # Experiment configuration.
     root_dir: str = "/tmp/jaxrl"
     """Where experiment directories are created."""
     seed: int = 42
@@ -41,18 +38,20 @@ class Args:
     """Batch size for training."""
     discount: float = 0.99
     """Discount factor."""
-    replay_capacity: int = 1_000_000
-    """Replay buffer capacity."""
     tqdm_bar: bool = False
     """Whether to use a tqdm progress bar in the training loop."""
     resets: bool = False
     """Whether to periodically reset the actor / critic layers."""
+    init_from_checkpoint: Optional[str] = None
+    """Path to a checkpoint to initialize the agent from."""
+
+    # Replay buffer configuration.
+    replay_capacity: int = 1_000_000
+    """Replay buffer capacity."""
     offline_dataset: Optional[str] = None
     """Path to a pickle file containing a list of transitions."""
     offline_pct: float = 0.5
     """Percentage of offline data to use."""
-    init_from_checkpoint: Optional[str] = None
-    """Path to a checkpoint to initialize the agent from."""
 
     # W&B configuration.
     project: str = "jaxrl"
@@ -60,6 +59,12 @@ class Args:
     tags: str = ""
     notes: str = ""
     mode: str = "online"
+
+    # Task configuration.
+    domain_name: str = "cartpole"
+    """Which domain to use."""
+    task_name: str = "swingup"
+    """Which task to use."""
 
     # Environment wrapper configuration.
     frame_stack: int = 1
