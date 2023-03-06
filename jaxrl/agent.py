@@ -18,9 +18,7 @@ class Agent(abc.ABC, struct.PyTreeNode):
         ...
 
     @abc.abstractmethod
-    def update(
-        self, transitions: Transition, *args, **kwargs
-    ) -> tuple["Agent", LogDict]:
+    def update(self, transitions: Transition) -> tuple["Agent", LogDict]:
         ...
 
     @abc.abstractmethod

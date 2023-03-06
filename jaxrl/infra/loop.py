@@ -24,8 +24,6 @@ def train_loop(
     logger_fn: LoggerFn,
     max_steps: int,
     warmstart_steps: int,
-    critic_utd_ratio: int,
-    actor_utd_ratio: int,
     log_interval: int,
     checkpoint_interval: int,
     resets: bool,
@@ -73,9 +71,7 @@ def train_loop(
         if i >= warmstart_steps:
             if replay_buffer.is_ready():
                 transitions = replay_buffer.sample()
-                agent, metrics = agent.update(
-                    transitions, critic_utd_ratio, actor_utd_ratio
-                )
+                agent, metrics = agent.update(transitions)
                 if i % log_interval == 0:
                     run.log(utils.prefix_dict("train", metrics), step=i)
 

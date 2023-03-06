@@ -63,6 +63,8 @@ class SACConfig:
     target_entropy: Optional[float] = None
     init_temperature: float = 1.0
     backup_entropy: bool = True
+    critic_utd_ratio: int = 1
+    actor_utd_ratio: int = 1
 
 
 class SAC(agent.Agent):
@@ -73,9 +75,11 @@ class SAC(agent.Agent):
     critic: TrainState
     target_critic: TrainState
     temp: TrainState
-    tau: float
-    discount: float
-    target_entropy: float
+    tau: float = struct.field(pytree_node=False)
+    discount: float = struct.field(pytree_node=False)
+    target_entropy: float = struct.field(pytree_node=False)
+    critic_utd_ratio: int = struct.field(pytree_node=False)
+    actor_utd_ratio: int = struct.field(pytree_node=False)
     num_qs: int = struct.field(pytree_node=False)
     num_min_qs: Optional[int] = struct.field(pytree_node=False)
     backup_entropy: bool = struct.field(pytree_node=False)
@@ -152,6 +156,8 @@ class SAC(agent.Agent):
             num_qs=config.num_qs,
             num_min_qs=config.num_min_qs,
             backup_entropy=config.backup_entropy,
+            critic_utd_ratio=config.critic_utd_ratio,
+            actor_utd_ratio=config.actor_utd_ratio,
         )
 
     def update_actor(self, transitions: Transition) -> tuple["SAC", LogDict]:
@@ -257,27 +263,25 @@ class SAC(agent.Agent):
 
         return self.replace(critic=critic, target_critic=target_critic, rng=rng), info
 
-    @partial(jax.jit, static_argnames=["critic_utd_ratio", "actor_utd_ratio"])
-    def update(
-        self, transitions: Transition, critic_utd_ratio: int, actor_utd_ratio: int
-    ) -> tuple["SAC", LogDict]:
+    @jax.jit
+    def update(self, transitions: Transition) -> tuple["SAC", LogDict]:
         new_agent = self
 
         # Update critic.
-        for i in range(critic_utd_ratio):
+        for i in range(self.critic_utd_ratio):
 
             def slice(x):
-                batch_size = x.shape[0] // critic_utd_ratio
+                batch_size = x.shape[0] // self.critic_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)
             new_agent, critic_info = new_agent.update_critic(mini_transition)
 
         # Update actor.
-        for i in range(actor_utd_ratio):
+        for i in range(self.actor_utd_ratio):
 
             def slice(x):
-                batch_size = x.shape[0] // actor_utd_ratio
+                batch_size = x.shape[0] // self.actor_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)

@@ -55,6 +55,8 @@ class TD3Config:
     sigma: float = 0.1
     target_sigma: float = 0.2
     noise_clip: float = 0.5
+    critic_utd_ratio: int = 1
+    actor_utd_ratio: int = 1
 
 
 class TD3(agent.Agent):
@@ -65,15 +67,17 @@ class TD3(agent.Agent):
     rng: Any
     critic: TrainState
     target_critic: TrainState
-    tau: float
-    discount: float
+    tau: float = struct.field(pytree_node=False)
+    discount: float = struct.field(pytree_node=False)
     num_qs: int = struct.field(pytree_node=False)
     num_min_qs: Optional[int] = struct.field(pytree_node=False)
-    sigma: float
-    target_sigma: float
-    noise_clip: float
-    action_min: np.ndarray
-    action_max: np.ndarray
+    sigma: float = struct.field(pytree_node=False)
+    target_sigma: float = struct.field(pytree_node=False)
+    noise_clip: float = struct.field(pytree_node=False)
+    action_min: np.ndarray = struct.field(pytree_node=False)
+    action_max: np.ndarray = struct.field(pytree_node=False)
+    critic_utd_ratio: int = struct.field(pytree_node=False)
+    actor_utd_ratio: int = struct.field(pytree_node=False)
 
     @staticmethod
     def initialize(
@@ -150,6 +154,8 @@ class TD3(agent.Agent):
             noise_clip=config.noise_clip,
             action_min=spec.action.minimum,
             action_max=spec.action.maximum,
+            critic_utd_ratio=config.critic_utd_ratio,
+            actor_utd_ratio=config.actor_utd_ratio,
         )
 
     def update_actor(self, transitions: Transition):
@@ -238,27 +244,25 @@ class TD3(agent.Agent):
 
         return self.replace(critic=critic, target_critic=target_critic, rng=rng), info
 
-    @partial(jax.jit, static_argnames=["critic_utd_ratio", "actor_utd_ratio"])
-    def update(
-        self, transitions: Transition, critic_utd_ratio: int, actor_utd_ratio: int
-    ) -> tuple["TD3", LogDict]:
+    @jax.jit
+    def update(self, transitions: Transition) -> tuple["TD3", LogDict]:
         new_agent = self
 
         # Update critic.
-        for i in range(critic_utd_ratio):
+        for i in range(self.critic_utd_ratio):
 
             def slice(x: np.ndarray) -> np.ndarray:
-                batch_size = x.shape[0] // critic_utd_ratio
+                batch_size = x.shape[0] // self.critic_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)
             new_agent, critic_info = new_agent.update_critic(mini_transition)
 
         # Update actor.
-        for i in range(actor_utd_ratio):
+        for i in range(self.actor_utd_ratio):
 
             def slice(x: np.ndarray) -> np.ndarray:
-                batch_size = x.shape[0] // actor_utd_ratio
+                batch_size = x.shape[0] // self.actor_utd_ratio
                 return x[batch_size * i : batch_size * (i + 1)]
 
             mini_transition = jax.tree_util.tree_map(slice, transitions)

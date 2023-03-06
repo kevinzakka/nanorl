@@ -39,10 +39,6 @@ class Args:
     """Number of episodes to run at every evaluation."""
     batch_size: int = 256
     """Batch size for training."""
-    critic_utd_ratio: int = 1
-    """Update-to-data ratio for the critic."""
-    actor_utd_ratio: int = 1
-    """Update-to-data ratio for the actor."""
     discount: float = 0.99
     """Discount factor."""
     replay_capacity: int = 1_000_000
@@ -118,31 +114,34 @@ def main(args: Args) -> None:
         else:
             offline_dataset = None
 
-        batch_size = args.batch_size * max(args.critic_utd_ratio, args.actor_utd_ratio)
+        utd_ratio = max(
+            args.agent_config.critic_utd_ratio, args.agent_config.actor_utd_ratio
+        )
 
         return replay.ReplayBuffer(
             capacity=args.replay_capacity,
-            batch_size=batch_size,
+            batch_size=args.batch_size * utd_ratio,
             spec=specs.EnvironmentSpec.make(env),
             offline_dataset=offline_dataset,
             offline_pct=args.offline_pct,
         )
 
     def logger_fn(job_type: str):
+        config = asdict(args)
+        config["agent"] = "TD3"
+
         wandb_kwargs = dict(
             project=args.project,
             group=run_name,
             entity="kzakka",
             tags=(args.tags.split(",") if args.tags else []),
             notes=args.notes or None,
-            config=asdict(args),
+            config=config,
             mode=args.mode,
             job_type=job_type,
+            name=run_name,
         )
-        if args.name:
-            wandb_kwargs["name"] = args.name
-        else:
-            wandb_kwargs["name"] = run_name
+
         return wandb.init(**wandb_kwargs)  # type: ignore
 
     def env_fn(record_dir: Optional[Path] = None) -> dm_env.Environment:
@@ -185,8 +184,6 @@ def main(args: Args) -> None:
         logger_fn=lambda: logger_fn("train"),
         max_steps=args.max_steps,
         warmstart_steps=args.warmstart_steps,
-        critic_utd_ratio=args.critic_utd_ratio,
-        actor_utd_ratio=args.actor_utd_ratio,
         log_interval=args.log_interval,
         checkpoint_interval=args.checkpoint_interval,
         resets=args.resets,
