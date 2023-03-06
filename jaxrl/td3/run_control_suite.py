@@ -80,7 +80,7 @@ class Args:
     """Whether to include the action and reward in the observation."""
 
     # TD3-specific configuration.
-    td3_config: TD3Config = TD3Config()
+    agent_config: TD3Config = TD3Config()
 
 
 def main(args: Args) -> None:
@@ -99,7 +99,7 @@ def main(args: Args) -> None:
     def agent_fn(env: dm_env.Environment) -> TD3:
         agent = TD3.initialize(
             spec=specs.EnvironmentSpec.make(env),
-            config=args.td3_config,
+            config=args.agent_config,
             seed=args.seed,
             discount=args.discount,
         )

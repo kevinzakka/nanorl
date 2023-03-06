@@ -80,7 +80,7 @@ class Args:
     """Whether to include the action and reward in the observation."""
 
     # SAC-specific configuration.
-    sac_config: SACConfig = SACConfig()
+    agent_config: SACConfig = SACConfig()
 
 
 def main(args: Args) -> None:
@@ -99,7 +99,7 @@ def main(args: Args) -> None:
     def agent_fn(env: dm_env.Environment) -> SAC:
         agent = SAC.initialize(
             spec=specs.EnvironmentSpec.make(env),
-            config=args.sac_config,
+            config=args.agent_config,
             seed=args.seed,
             discount=args.discount,
         )
