@@ -22,6 +22,7 @@ from nanorl.types import LogDict, Transition
 
 class Temperature(nn.Module):
     initial_temperature: float = 1.0
+    dtype = jnp.float32
 
     @nn.compact
     def __call__(self) -> jnp.ndarray:
@@ -65,6 +66,7 @@ class SACConfig:
     backup_entropy: bool = True
     critic_utd_ratio: int = 1
     actor_utd_ratio: int = 1
+    dtype: str = "float32"
 
 
 class SAC(agent.Agent):
@@ -83,6 +85,7 @@ class SAC(agent.Agent):
     num_qs: int = struct.field(pytree_node=False)
     num_min_qs: Optional[int] = struct.field(pytree_node=False)
     backup_entropy: bool = struct.field(pytree_node=False)
+    dtype = struct.field(pytree_node=False)
 
     @staticmethod
     def initialize(
@@ -92,6 +95,13 @@ class SAC(agent.Agent):
         discount: float = 0.99,
     ) -> "SAC":
         """Initializes the agent from the given environment spec and config."""
+
+        if config.dtype == "float32":
+            dtype = jnp.float32
+        elif config.dtype == "float16":
+            dtype = jnp.float16
+        else:
+            raise ValueError(f"Invalid dtype: {config.dtype}")
 
         action_dim = spec.action.shape[-1]
         observations = zeros_like(spec.observation)
@@ -104,7 +114,7 @@ class SAC(agent.Agent):
         rng, actor_key, critic_key, temp_key = jax.random.split(rng, 4)
 
         actor_base_cls = partial(
-            MLP, hidden_dims=config.hidden_dims, activate_final=True
+            MLP, hidden_dims=config.hidden_dims, activate_final=True, dtype=dtype
         )
         actor_def = TanhNormal(actor_base_cls, action_dim)
         actor_params = actor_def.init(actor_key, observations)["params"]
@@ -120,8 +130,9 @@ class SAC(agent.Agent):
             activate_final=True,
             dropout_rate=config.critic_dropout_rate,
             use_layer_norm=config.critic_layer_norm,
+            dtype=dtype,
         )
-        critic_cls = partial(StateActionValue, base_cls=critic_base_cls)
+        critic_cls = partial(StateActionValue, base_cls=critic_base_cls, dtype=dtype)
         critic_def = Ensemble(critic_cls, num=config.num_qs)
         critic_params = critic_def.init(critic_key, observations, actions)["params"]
         critic = TrainState.create(
@@ -136,7 +147,7 @@ class SAC(agent.Agent):
             tx=optax.GradientTransformation(lambda _: None, lambda _: None),
         )
 
-        temp_def = Temperature(config.init_temperature)
+        temp_def = Temperature(config.init_temperature, dtype=dtype)
         temp_params = temp_def.init(temp_key)["params"]
         temp = TrainState.create(
             apply_fn=temp_def.apply,
@@ -158,6 +169,7 @@ class SAC(agent.Agent):
             backup_entropy=config.backup_entropy,
             critic_utd_ratio=config.critic_utd_ratio,
             actor_utd_ratio=config.actor_utd_ratio,
+            dtype=dtype,
         )
 
     def update_actor(self, transitions: Transition) -> tuple["SAC", LogDict]:

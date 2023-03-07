@@ -17,11 +17,12 @@ class MLP(nn.Module):
     activate_final: bool = False
     use_layer_norm: bool = False
     dropout_rate: Optional[float] = None
+    dtype = jnp.float32
 
     @nn.compact
     def __call__(self, x: jnp.ndarray, training: bool = False) -> jnp.ndarray:
         for i, size in enumerate(self.hidden_dims):
-            x = nn.Dense(size, kernel_init=default_init())(x)
+            x = nn.Dense(size, kernel_init=default_init(), dtype=self.dtype)(x)
 
             if i + 1 < len(self.hidden_dims) or self.activate_final:
                 if self.dropout_rate is not None and self.dropout_rate > 0:
@@ -29,13 +30,14 @@ class MLP(nn.Module):
                         x, deterministic=not training
                     )
                 if self.use_layer_norm:
-                    x = nn.LayerNorm()(x)
+                    x = nn.LayerNorm(dtype=self.dtype)(x)
                 x = self.activations(x)
         return x
 
 
 class StateActionValue(nn.Module):
     base_cls: Type[nn.Module]
+    dtype = jnp.float32
 
     @nn.compact
     def __call__(
@@ -44,7 +46,7 @@ class StateActionValue(nn.Module):
         inputs = jnp.concatenate([observations, actions], axis=-1)
         outputs = self.base_cls()(inputs, *args, **kwargs)
 
-        value = nn.Dense(1, kernel_init=default_init())(outputs)
+        value = nn.Dense(1, kernel_init=default_init(), dtype=self.dtype)(outputs)
 
         return jnp.squeeze(value, -1)
 

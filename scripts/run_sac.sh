@@ -10,6 +10,7 @@ WANDB_DIR=/tmp/nanorl/ MUJOCO_GL=egl XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VI
     --agent-config.critic-dropout-rate 0.01 \
     --agent-config.critic-layer-norm \
     --agent-config.hidden-dims 256 256 \
+    --agent-config.dtype "float16" \
     --tqdm-bar \
     --domain-name cartpole \
     --task-name swingup

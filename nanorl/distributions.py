@@ -28,21 +28,30 @@ class Normal(nn.Module):
     log_std_max: Optional[float] = 2
     state_dependent_std: bool = True
     squash_tanh: bool = False
+    dtype = jnp.float32
 
     @nn.compact
     def __call__(self, inputs, *args, **kwargs) -> distrax.Distribution:
         x = self.base_cls()(inputs, *args, **kwargs)
 
         means = nn.Dense(
-            self.action_dim, kernel_init=default_init(), name="OutputDenseMean"
+            self.action_dim,
+            kernel_init=default_init(),
+            name="OutputDenseMean",
+            dtype=self.dtype,
         )(x)
         if self.state_dependent_std:
             log_stds = nn.Dense(
-                self.action_dim, kernel_init=default_init(), name="OutputDenseLogStd"
+                self.action_dim,
+                kernel_init=default_init(),
+                name="OutputDenseLogStd",
+                dtype=self.dtype,
             )(x)
         else:
             log_stds = self.param(
-                "OutpuLogStd", nn.initializers.zeros, (self.action_dim,), jnp.float32
+                "OutpuLogStd",
+                nn.initializers.zeros,
+                (self.action_dim,),
             )
 
         log_stds = jnp.clip(log_stds, self.log_std_min, self.log_std_max)
@@ -59,13 +68,17 @@ TanhNormal = functools.partial(Normal, squash_tanh=True)
 class TanhDeterministic(nn.Module):
     base_cls: Type[nn.Module]
     action_dim: int
+    dtype = jnp.float32
 
     @nn.compact
     def __call__(self, inputs, *args, **kwargs) -> jnp.ndarray:
         x = self.base_cls()(inputs, *args, **kwargs)
 
         means = nn.Dense(
-            self.action_dim, kernel_init=default_init(), name="OutputDenseMean"
+            self.action_dim,
+            kernel_init=default_init(),
+            name="OutputDenseMean",
+            dtype=self.dtype,
         )(x)
 
         return nn.tanh(means)
