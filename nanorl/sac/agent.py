@@ -22,7 +22,7 @@ from nanorl.types import LogDict, Transition
 
 class Temperature(nn.Module):
     initial_temperature: float = 1.0
-    dtype = jnp.float32
+    dtype: jnp.dtype = jnp.float32  # type: ignore
 
     @nn.compact
     def __call__(self) -> jnp.ndarray:

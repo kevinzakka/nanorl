@@ -17,7 +17,7 @@ class MLP(nn.Module):
     activate_final: bool = False
     use_layer_norm: bool = False
     dropout_rate: Optional[float] = None
-    dtype = jnp.float32
+    dtype: jnp.dtype = jnp.float32  # type: ignore
 
     @nn.compact
     def __call__(self, x: jnp.ndarray, training: bool = False) -> jnp.ndarray:
@@ -37,7 +37,7 @@ class MLP(nn.Module):
 
 class StateActionValue(nn.Module):
     base_cls: Type[nn.Module]
-    dtype = jnp.float32
+    dtype: jnp.dtype = jnp.float32  # type: ignore
 
     @nn.compact
     def __call__(
