@@ -8,7 +8,6 @@ run ()
         --root-dir /tmp/nanorl/runs/ \
         --warmstart-steps 5000 \
         --max-steps 250000 \
-        --checkpoint-interval 10000 \
         --discount 0.99 \
         --agent-config.critic-dropout-rate 0.01 \
         --agent-config.critic-layer-norm \
