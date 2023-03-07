@@ -139,7 +139,7 @@ def main(args: Args) -> None:
         wandb_kwargs = dict(
             project=args.project,
             group=run_name,
-            entity=args.entity,
+            entity=args.entity or None,
             tags=(args.tags.split(",") if args.tags else []),
             notes=args.notes or None,
             config=config,
