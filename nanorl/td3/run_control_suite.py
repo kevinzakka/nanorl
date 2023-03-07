@@ -55,6 +55,7 @@ class Args:
 
     # W&B configuration.
     project: str = "nanorl"
+    entity: str = ""
     name: str = ""
     tags: str = ""
     notes: str = ""
@@ -138,7 +139,7 @@ def main(args: Args) -> None:
         wandb_kwargs = dict(
             project=args.project,
             group=run_name,
-            entity="kzakka",
+            entity=args.entity,
             tags=(args.tags.split(",") if args.tags else []),
             notes=args.notes or None,
             config=config,
