@@ -85,7 +85,6 @@ class SAC(agent.Agent):
     num_qs: int = struct.field(pytree_node=False)
     num_min_qs: Optional[int] = struct.field(pytree_node=False)
     backup_entropy: bool = struct.field(pytree_node=False)
-    dtype = struct.field(pytree_node=False)
 
     @staticmethod
     def initialize(
@@ -169,7 +168,6 @@ class SAC(agent.Agent):
             backup_entropy=config.backup_entropy,
             critic_utd_ratio=config.critic_utd_ratio,
             actor_utd_ratio=config.actor_utd_ratio,
-            dtype=dtype,
         )
 
     def update_actor(self, transitions: Transition) -> tuple["SAC", LogDict]:
