@@ -28,8 +28,8 @@ class Args:
     """Number of steps in which to take random actions before starting training."""
     log_interval: int = 1_000
     """Number of steps between logging to wandb."""
-    checkpoint_interval: int = 5_000
-    """Number of steps between checkpoints and evaluations."""
+    checkpoint_interval: int = -1
+    """Number of steps between checkpoints and evaluations. Set to -1 to disable."""
     reset_interval: int = 200_000
     """Number of steps between resetting the policy."""
     eval_episodes: int = 10

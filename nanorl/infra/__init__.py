@@ -2,7 +2,6 @@
 
 from nanorl.infra.experiment import Experiment
 from nanorl.infra.utils import (
-    FpsCounter,
     get_latest_video,
     prefix_dict,
     merge_dict,
@@ -17,7 +16,6 @@ __all__ = [
     "Experiment",
     "train_loop",
     "eval_loop",
-    "FpsCounter",
     "get_latest_video",
     "prefix_dict",
     "merge_dict",

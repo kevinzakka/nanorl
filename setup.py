@@ -22,23 +22,25 @@ with open(_here / "README.md", "r") as f:
 # Minimum requirements for nanorl to import and run.
 core_requirements = [
     "distrax",
-    "dm_env>=1.6",
+    "dm_env",
     "flax",
+    "jax",
+    "jaxlib",
     "optax",
     "tensorflow",
 ]
 
 # Requirements for nanorl.infra.
 infra_requirements = [
-    "psutil>=5.9.4",
-    "tyro>=0.4.0",
-    "wandb>=0.13.10",
+    "psutil",
+    "tyro",
+    "wandb",
 ]
 
 # Requirements for `run_control_suite.py`.
 control_suite_requirements = [
     "dm_control>=1.0.10",
-    "dm_env_wrappers>=0.0.7",
+    "dm_env_wrappers>=0.0.8",
     "mujoco>=2.3.2",
 ]
 
@@ -67,7 +69,7 @@ author = "Kevin Zakka"
 
 author_email = "kevinarmandzakka@gmail.com"
 
-description = "A tiny reinforcement learning library written in JaX"
+description = "A tiny reinforcement learning library written in JAX"
 
 
 setup(

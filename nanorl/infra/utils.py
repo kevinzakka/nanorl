@@ -5,7 +5,6 @@ import random
 import shutil
 import signal
 import tempfile
-import time
 import uuid
 from pathlib import Path
 from typing import Any, Optional
@@ -15,46 +14,6 @@ import dm_env_wrappers as wrappers
 import numpy as np
 
 PathOrStr = str | Path
-
-
-class FpsCounter:
-    """Estimates a moving frame per second average."""
-
-    def __init__(self, smoothing: float = 0.1) -> None:
-        """Constructor.
-
-        Args:
-            smoothing: Smoothing factor between 0 and 1. Higher values assign more
-                weight to recent values.
-        """
-        if not 0 <= smoothing <= 1:
-            raise ValueError("`smoothing` must be between 0 and 1.")
-        self._smoothing = smoothing
-        self.reset()
-
-    def reset(self) -> None:
-        self._last_time: float = time.time()
-        self._last_frame: int = 0
-        self._fps: Optional[float] = None
-
-    def update(self, frame: int) -> None:
-        t = time.time()
-        dt = t - self._last_time
-        df = frame - self._last_frame
-        # TODO(kevin): Handle dt == 0.
-        fps = df / dt
-        if self._fps is None:
-            self._fps = fps
-        else:
-            self._fps = self._smoothing * fps + (1 - self._smoothing) * self._fps
-        self._last_time = t
-        self._last_frame = frame
-
-    @property
-    def fps(self) -> float:
-        if self._fps is None:
-            raise ValueError("FPS not yet initialized.")
-        return self._fps
 
 
 def get_latest_video(video_dir: Path) -> Optional[Path]:

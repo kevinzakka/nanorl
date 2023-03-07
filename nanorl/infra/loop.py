@@ -35,7 +35,6 @@ def train_loop(
     replay_buffer = replay_fn(env)
 
     run = logger_fn()
-    fps_counter = utils.FpsCounter(smoothing=0.6)
 
     spec = specs.EnvironmentSpec.make(env)
     timestep = env.reset()
@@ -54,6 +53,7 @@ def train_loop(
     else:
         random_state = env.task.random
 
+    start_time = time.time()
     for i in tqdm.tqdm(range(1, max_steps + 1), disable=not tqdm_bar):
         if i < warmstart_steps:
             action = spec.sample_action(random_state=random_state)
@@ -75,15 +75,14 @@ def train_loop(
                 if i % log_interval == 0:
                     run.log(utils.prefix_dict("train", metrics), step=i)
 
-        if i % checkpoint_interval == 0:
+        if checkpoint_interval >= 0 and i % checkpoint_interval == 0:
             experiment.save_checkpoint(agent, step=i)
             utils.atomic_save(
                 experiment.data_dir / "replay_buffer.pkl", replay_buffer.data
             )
 
         if i % log_interval == 0:
-            fps_counter.update(i)
-            run.log({"train/fps": fps_counter.fps}, step=i)
+            run.log({"train/fps": int(i / (time.time() - start_time))}, step=i)
 
         if resets and i % reset_interval == 0:
             agent = agent_fn(env)
