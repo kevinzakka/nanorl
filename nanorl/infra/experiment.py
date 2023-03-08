@@ -117,7 +117,7 @@ class Experiment:
             return
 
         video = wandb.Video(str(filename), fps=4, format="mp4")
-        wandb.log({"video": video})
+        wandb.log({"video": video}, step=step)
         filename.unlink()
 
     # Helpers.
