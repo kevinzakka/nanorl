@@ -77,9 +77,6 @@ def train_loop(
 
         if checkpoint_interval >= 0 and i % checkpoint_interval == 0:
             experiment.save_checkpoint(agent, step=i)
-            # utils.atomic_save(
-            #     experiment.data_dir / "replay_buffer.pkl", replay_buffer.data
-            # )
 
         if i % log_interval == 0:
             run.log({"train/fps": int(i / (time.time() - start_time))}, step=i)
