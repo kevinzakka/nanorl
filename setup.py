@@ -35,6 +35,7 @@ infra_requirements = [
     "psutil",
     "tyro",
     "wandb",
+    "tensorboardX",
 ]
 
 # Requirements for `run_control_suite.py`.
