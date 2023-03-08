@@ -41,7 +41,7 @@ infra_requirements = [
 # Requirements for `run_control_suite.py`.
 control_suite_requirements = [
     "dm_control>=1.0.10",
-    "dm_env_wrappers>=0.0.8",
+    "dm_env_wrappers>=0.0.9",
     "mujoco>=2.3.2",
 ]
 
