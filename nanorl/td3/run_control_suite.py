@@ -2,7 +2,7 @@
 
 import time
 from dataclasses import asdict, dataclass
-from multiprocessing import Process
+from concurrent import futures
 from pathlib import Path
 from typing import Optional
 import dm_env
@@ -167,22 +167,11 @@ def main(args: Args) -> None:
             action_reward_observation=args.action_reward_observation,
         )
 
-    # Run eval in a separate process.
-    proc = Process(
-        target=lambda: eval_loop(
-            experiment=experiment,
-            env_fn=lambda: env_fn(record_dir=experiment.data_dir / "videos"),
-            agent_fn=agent_fn,
-            logger_fn=lambda: logger_fn("eval"),
-            num_episodes=args.eval_episodes,
-            video_dir=experiment.data_dir / "videos",
-            max_steps=args.max_steps,
-        )
-    )
-    proc.start()
+    pool = futures.ThreadPoolExecutor(1)
 
-    # Launch training!
-    train_loop(
+    # Run training in a background thread.
+    pool.submit(
+        train_loop,
         experiment=experiment,
         env_fn=env_fn,
         agent_fn=agent_fn,
@@ -197,8 +186,19 @@ def main(args: Args) -> None:
         tqdm_bar=args.tqdm_bar,
     )
 
-    # At this point, training is done. Wait for eval to finish.
-    proc.join()
+    # Continuously monitor for checkpoints and evaluate.
+    eval_loop(
+        experiment=experiment,
+        env_fn=lambda: env_fn(record_dir=experiment.data_dir / "videos"),
+        agent_fn=agent_fn,
+        logger_fn=lambda: logger_fn("eval"),
+        num_episodes=args.eval_episodes,
+        video_dir=experiment.data_dir / "videos",
+        max_steps=args.max_steps,
+    )
+
+    # Clean up.
+    pool.shutdown()
 
 
 if __name__ == "__main__":

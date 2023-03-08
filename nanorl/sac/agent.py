@@ -56,6 +56,7 @@ class SACConfig:
     critic_lr: float = 3e-4
     temp_lr: float = 3e-4
     hidden_dims: Sequence[int] = (256, 256, 256)
+    activation: str = "gelu"
     num_min_qs: Optional[int] = None
     critic_dropout_rate: Optional[float] = None
     critic_layer_norm: bool = False
@@ -104,7 +105,10 @@ class SAC(agent.Agent):
         rng, actor_key, critic_key, temp_key = jax.random.split(rng, 4)
 
         actor_base_cls = partial(
-            MLP, hidden_dims=config.hidden_dims, activate_final=True
+            MLP,
+            hidden_dims=config.hidden_dims,
+            activation=getattr(nn, config.activation),
+            activate_final=True,
         )
         actor_def = TanhNormal(actor_base_cls, action_dim)
         actor_params = actor_def.init(actor_key, observations)["params"]
@@ -117,6 +121,7 @@ class SAC(agent.Agent):
         critic_base_cls = partial(
             MLP,
             hidden_dims=config.hidden_dims,
+            activation=getattr(nn, config.activation),
             activate_final=True,
             dropout_rate=config.critic_dropout_rate,
             use_layer_norm=config.critic_layer_norm,
