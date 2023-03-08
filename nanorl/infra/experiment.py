@@ -1,11 +1,14 @@
 import pathlib
 from dataclasses import dataclass, is_dataclass
-from typing import Any, Optional, Type, TypeVar
+from typing import Any, Mapping, Optional, Type, TypeVar
 
+from functools import cached_property
 import flax.training.checkpoints
 import tyro
+import wandb
 import yaml
 from typing_extensions import get_origin
+import tensorboardX
 
 T = TypeVar("T")
 
@@ -17,11 +20,14 @@ def _get_origin(cls: Type) -> Type:
 
 
 # Adapted from https://github.com/brentyi/fifteen.
-@dataclass(frozen=True)
+@dataclass
 class Experiment:
     """A simple directory associated with a run of some training script."""
 
     data_dir: pathlib.Path
+
+    def __post_init__(self) -> None:
+        self._wandb_enabled = False
 
     # Checkpointing.
 
@@ -87,6 +93,32 @@ class Experiment:
             )
         assert isinstance(output, expected_type)
         return output
+
+    # Logging.
+
+    def enable_wandb(self, **wandb_kwargs) -> None:
+        self._wandb_enabled = True
+
+        wandb.init(**wandb_kwargs)  # type: ignore
+
+    @cached_property
+    def summary_writer(self) -> tensorboardX.SummaryWriter:
+        return tensorboardX.SummaryWriter(log_dir=str(self.data_dir), flush_secs=30)
+
+    def log(self, data: Mapping[str, Any], step: int) -> None:
+        for key, value in data.items():
+            if hasattr(value, "shape"):
+                shape = value.shape  # type: ignore
+                assert shape == (), f"Expected scalar, got {shape} for {key}."
+            self.summary_writer.add_scalar(key, value, global_step=step)
+
+    def log_video(self, filename: pathlib.Path, step: int) -> None:
+        if not self._wandb_enabled:
+            return
+
+        video = wandb.Video(str(filename), fps=4, format="mp4")
+        wandb.log({"video": video, "global_step": step})
+        filename.unlink()
 
     # Helpers.
 

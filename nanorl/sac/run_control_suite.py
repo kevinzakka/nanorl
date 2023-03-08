@@ -2,12 +2,11 @@
 
 import time
 from dataclasses import asdict, dataclass
-from multiprocessing import Process
+from concurrent import futures
 from pathlib import Path
 from typing import Optional
 import dm_env
 import tyro
-import wandb
 from dm_control import suite
 
 from nanorl import replay, specs
@@ -54,6 +53,7 @@ class Args:
     """Percentage of offline data to use."""
 
     # W&B configuration.
+    use_wandb: bool = False
     project: str = "nanorl"
     entity: str = ""
     name: str = ""
@@ -98,6 +98,18 @@ def main(args: Args) -> None:
     experiment = Experiment(Path(args.root_dir) / run_name).assert_new()
     experiment.write_metadata("config", args)
 
+    if args.use_wandb:
+        experiment.enable_wandb(
+            project=args.project,
+            entity=args.entity or None,
+            tags=(args.tags.split(",") if args.tags else []),
+            notes=args.notes or None,
+            config=asdict(args),
+            mode=args.mode,
+            name=run_name,
+            sync_tensorboard=True,
+        )
+
     def agent_fn(env: dm_env.Environment) -> SAC:
         agent = SAC.initialize(
             spec=specs.EnvironmentSpec.make(env),
@@ -132,24 +144,6 @@ def main(args: Args) -> None:
             offline_pct=args.offline_pct,
         )
 
-    def logger_fn(job_type: str):
-        config = asdict(args)
-        config["agent"] = "SAC"
-
-        wandb_kwargs = dict(
-            project=args.project,
-            group=run_name,
-            entity=args.entity or None,
-            tags=(args.tags.split(",") if args.tags else []),
-            notes=args.notes or None,
-            config=config,
-            mode=args.mode,
-            job_type=job_type,
-            name=run_name,
-        )
-
-        return wandb.init(**wandb_kwargs)  # type: ignore
-
     def env_fn(record_dir: Optional[Path] = None) -> dm_env.Environment:
         env = suite.load(
             domain_name=args.domain_name,
@@ -167,27 +161,15 @@ def main(args: Args) -> None:
             action_reward_observation=args.action_reward_observation,
         )
 
-    # Run eval in a separate process.
-    proc = Process(
-        target=lambda: eval_loop(
-            experiment=experiment,
-            env_fn=lambda: env_fn(record_dir=experiment.data_dir / "videos"),
-            agent_fn=agent_fn,
-            logger_fn=lambda: logger_fn("eval"),
-            num_episodes=args.eval_episodes,
-            video_dir=experiment.data_dir / "videos",
-            max_steps=args.max_steps,
-        )
-    )
-    proc.start()
+    pool = futures.ThreadPoolExecutor(1)
 
-    # Launch training!
-    train_loop(
+    # Run training in a background thread.
+    pool.submit(
+        train_loop,
         experiment=experiment,
         env_fn=env_fn,
         agent_fn=agent_fn,
         replay_fn=replay_fn,
-        logger_fn=lambda: logger_fn("train"),
         max_steps=args.max_steps,
         warmstart_steps=args.warmstart_steps,
         log_interval=args.log_interval,
@@ -197,8 +179,17 @@ def main(args: Args) -> None:
         tqdm_bar=args.tqdm_bar,
     )
 
-    # At this point, training is done. Wait for eval to finish.
-    proc.join()
+    # Continuously monitor for checkpoints and evaluate.
+    eval_loop(
+        experiment=experiment,
+        env_fn=lambda: env_fn(record_dir=experiment.data_dir / "videos"),
+        agent_fn=agent_fn,
+        num_episodes=args.eval_episodes,
+        max_steps=args.max_steps,
+    )
+
+    # Clean up.
+    pool.shutdown()
 
 
 if __name__ == "__main__":

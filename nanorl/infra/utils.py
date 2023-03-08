@@ -112,5 +112,6 @@ def wrap_env(
 
     env = wrappers.CanonicalSpecWrapper(env, clip=clip)
     env = wrappers.SinglePrecisionWrapper(env)
+    env = wrappers.DmControlWrapper(env)
 
     return env

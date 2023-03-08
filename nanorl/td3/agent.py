@@ -9,6 +9,7 @@ import jax
 import jax.numpy as jnp
 import numpy as np
 import optax
+import flax.linen as nn
 from flax import struct
 from flax.training.train_state import TrainState
 
@@ -48,6 +49,7 @@ class TD3Config:
     actor_lr: float = 3e-4
     critic_lr: float = 3e-4
     hidden_dims: Sequence[int] = (256, 256, 256)
+    activation: str = "gelu"
     num_min_qs: Optional[int] = None
     critic_dropout_rate: Optional[float] = None
     critic_layer_norm: bool = False
@@ -97,7 +99,10 @@ class TD3(agent.Agent):
 
         # Actor.
         actor_base_cls = partial(
-            MLP, hidden_dims=config.hidden_dims, activate_final=True
+            MLP,
+            hidden_dims=config.hidden_dims,
+            activation=getattr(nn, config.activation),
+            activate_final=True,
         )
         actor_def = TanhDeterministic(actor_base_cls, action_dim)
         actor_params = actor_def.init(actor_key, observations)["params"]
@@ -118,6 +123,7 @@ class TD3(agent.Agent):
         critic_base_cls = partial(
             MLP,
             hidden_dims=config.hidden_dims,
+            activation=getattr(nn, config.activation),
             activate_final=True,
             dropout_rate=config.critic_dropout_rate,
             use_layer_norm=config.critic_layer_norm,
