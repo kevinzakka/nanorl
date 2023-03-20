@@ -1,23 +1,24 @@
-"""Train a SAC agent on dm_control suite tasks."""
+"""Train a SAC or TD3 agent on dm_control suite tasks."""
 
 import time
-from dataclasses import asdict, dataclass
 from concurrent import futures
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Optional
+
 import dm_env
 import tyro
 from dm_control import suite
+from typing_extensions import assert_never
 
-from nanorl import replay, specs
-from nanorl import SAC, SACConfig
-from nanorl.infra import seed_rngs, Experiment, train_loop, eval_loop, wrap_env
+from nanorl import SAC, TD3, SACConfig, TD3Config, replay, specs
+from nanorl.infra import Experiment, eval_loop, seed_rngs, train_loop, wrap_env
 
 
 @dataclass(frozen=True)
 class Args:
     # Experiment configuration.
-    root_dir: str = "/tmp/nanorl"
+    root_dir: Path = Path("/tmp/nanorl")
     """Where experiment directories are created."""
     seed: int = 42
     """RNG seed."""
@@ -81,21 +82,36 @@ class Args:
     action_reward_observation: bool = False
     """Whether to include the action and reward in the observation."""
 
-    # SAC-specific configuration.
-    agent_config: SACConfig = SACConfig()
+    # SAC or TD3 agent configuration.
+    agent_config: (
+        # Define a `SACConfig | TD3Config` union type, but add some metadata for a
+        # prettier CLI.
+        Annotated[SACConfig, tyro.conf.subcommand(name="sac", prefix_name=False)]
+        | Annotated[TD3Config, tyro.conf.subcommand(name="td3", prefix_name=False)]
+    ) = SACConfig()
 
 
 def main(args: Args) -> None:
+    # Get or generate run name.
     if args.name:
         run_name = args.name
     else:
-        run_name = f"SAC-{args.domain_name}-{args.task_name}-{args.seed}-{time.time()}"
+        if isinstance(args.agent_config, SACConfig):
+            agent_cls = "SAC"
+        elif isinstance(args.agent_config, TD3Config):
+            agent_cls = "TD3"
+        else:
+            assert_never(args.agent_config)
+
+        run_name = (
+            f"{agent_cls}-{args.domain_name}-{args.task_name}-{args.seed}-{time.time()}"
+        )
 
     # Seed RNGs.
     seed_rngs(args.seed)
 
     # Setup the experiment for checkpoints, videos, metadata, etc.
-    experiment = Experiment(Path(args.root_dir) / run_name).assert_new()
+    experiment = Experiment(args.root_dir / run_name).assert_new()
     experiment.write_metadata("config", args)
 
     if args.use_wandb:
@@ -110,13 +126,23 @@ def main(args: Args) -> None:
             sync_tensorboard=True,
         )
 
-    def agent_fn(env: dm_env.Environment) -> SAC:
-        agent = SAC.initialize(
-            spec=specs.EnvironmentSpec.make(env),
-            config=args.agent_config,
-            seed=args.seed,
-            discount=args.discount,
-        )
+    def agent_fn(env: dm_env.Environment) -> SAC | TD3:
+        if isinstance(args.agent_config, SACConfig):
+            agent = SAC.initialize(
+                spec=specs.EnvironmentSpec.make(env),
+                config=args.agent_config,
+                seed=args.seed,
+                discount=args.discount,
+            )
+        elif isinstance(args.agent_config, TD3Config):
+            agent = TD3.initialize(
+                spec=specs.EnvironmentSpec.make(env),
+                config=args.agent_config,
+                seed=args.seed,
+                discount=args.discount,
+            )
+        else:
+            assert_never(args.agent_config)
 
         if args.init_from_checkpoint is not None:
             ckpt_exp = Experiment(Path(args.init_from_checkpoint)).assert_exists()
@@ -193,4 +219,4 @@ def main(args: Args) -> None:
 
 
 if __name__ == "__main__":
-    main(tyro.cli(Args, description=__doc__))
+    main(tyro.cli(tyro.conf.ConsolidateSubcommandArgs[Args], description=__doc__))
