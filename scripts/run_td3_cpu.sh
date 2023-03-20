@@ -1,6 +1,7 @@
 #!/bin/bash
 
-WANDB_DIR=/tmp/nanorl/ python nanorl/td3/run_control_suite.py \
+WANDB_DIR=/tmp/nanorl/ python nanorl/infra/run_control_suite.py \
+    td3 \
     --root-dir /tmp/nanorl/runs/ \
     --warmstart-steps 5000 \
     --max-steps 50000 \

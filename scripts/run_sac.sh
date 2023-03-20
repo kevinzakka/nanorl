@@ -2,7 +2,8 @@
 #
 # Run 1 seed of SAC on cartpole swingup.
 
-WANDB_DIR=/tmp/nanorl/ MUJOCO_GL=egl XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=0 MUJOCO_EGL_DEVICE_ID=0 python nanorl/sac/run_control_suite.py \
+WANDB_DIR=/tmp/nanorl/ MUJOCO_GL=egl XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=0 MUJOCO_EGL_DEVICE_ID=0 python nanorl/infra/run_control_suite.py \
+    sac \
     --root-dir /tmp/nanorl/runs/ \
     --warmstart-steps 5000 \
     --max-steps 250000 \
