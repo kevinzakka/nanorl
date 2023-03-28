@@ -44,7 +44,7 @@ class Args:
     """Whether to periodically reset the actor / critic layers."""
     init_from_checkpoint: Optional[str] = None
     """Path to a checkpoint to initialize the agent from."""
-    use_torch: bool = True
+    use_torch: bool = False
     """Whether to use the torch version of the agent."""
 
     # Replay buffer configuration.

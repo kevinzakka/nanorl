@@ -96,10 +96,10 @@ class SAC(nn.Module):
         temperature.to(device)
 
         if os.getenv("TORCH_COMPILE", "0") == "1":
-            actor = torch.compile(actor)
+            # actor = torch.compile(actor)
             critic = torch.compile(critic)
             target_critic = torch.compile(target_critic)
-            temperature = torch.compile(temperature)
+            # temperature = torch.compile(temperature)
 
         actor_optimizer = torch.optim.Adam(actor.parameters(), lr=config.actor_lr)
         critic_optimizer = torch.optim.Adam(critic.parameters(), lr=config.critic_lr)
@@ -265,14 +265,14 @@ class SAC(nn.Module):
 
         return self, {**actor_info, **critic_info, **temp_info}
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def sample_actions(self, observations: np.ndarray) -> Tuple["SAC", np.ndarray]:
         t_observations = torch.from_numpy(observations).float().to(self._device)
         dist = self._actor(t_observations)
         actions = dist.sample()
         return self, actions.cpu().detach().numpy()
 
-    @torch.inference_mode()
+    @torch.no_grad()
     def eval_actions(self, observations: np.ndarray) -> Tuple["SAC", np.ndarray]:
         t_observations = torch.from_numpy(observations).float().to(self._device)
         dist = self._actor(t_observations)
