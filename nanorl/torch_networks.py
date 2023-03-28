@@ -9,12 +9,6 @@ import torch.nn as nn
 
 from nanorl import types
 
-# import flax.linen as nn
-# import jax
-# import jax.numpy as jnp
-# default_init = nn.initializers.xavier_uniform
-
-
 def weight_init(m):
     """Custom weight init for Conv2D and Linear layers."""
     if isinstance(m, nn.Linear):
