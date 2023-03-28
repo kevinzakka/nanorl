@@ -7,6 +7,7 @@ from nanorl.infra.utils import (
     merge_dict,
     atomic_save,
     pickle_save,
+    print_exception_wrapper,
     seed_rngs,
     wrap_env,
 )
@@ -21,6 +22,7 @@ __all__ = [
     "merge_dict",
     "atomic_save",
     "pickle_save",
+    "print_exception_wrapper",
     "seed_rngs",
     "wrap_env",
 ]

@@ -3,6 +3,7 @@
 # Run 1 seed of SAC on cartpole swingup.
 
 WANDB_DIR=/tmp/nanorl/ MUJOCO_GL=egl XLA_PYTHON_CLIENT_PREALLOCATE=false CUDA_VISIBLE_DEVICES=1 MUJOCO_EGL_DEVICE_ID=0 python nanorl/sac/run_control_suite.py \
+    --use-torch \
     --use-wandb \
     --log-interval 100 \
     --root-dir /tmp/nanorl/runs/ \
