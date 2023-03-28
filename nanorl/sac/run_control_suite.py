@@ -11,7 +11,8 @@ from dm_control import suite
 
 from nanorl import replay, specs
 from nanorl import SAC, SACConfig
-from nanorl.infra import seed_rngs, Experiment, train_loop, eval_loop, wrap_env
+from nanorl.infra import seed_rngs, Experiment, train_loop, eval_loop, wrap_env, print_exception_wrapper
+from nanorl.sac.agent_torch import SAC as  SAC_torch
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,8 @@ class Args:
     """Whether to periodically reset the actor / critic layers."""
     init_from_checkpoint: Optional[str] = None
     """Path to a checkpoint to initialize the agent from."""
+    use_torch: bool = True
+    """Whether to use the torch version of the agent."""
 
     # Replay buffer configuration.
     replay_capacity: int = 1_000_000
@@ -111,16 +114,29 @@ def main(args: Args) -> None:
         )
 
     def agent_fn(env: dm_env.Environment) -> SAC:
-        agent = SAC.initialize(
-            spec=specs.EnvironmentSpec.make(env),
-            config=args.agent_config,
-            seed=args.seed,
-            discount=args.discount,
-        )
+        if args.use_torch:
+            agent = SAC_torch.initialize(
+                spec=specs.EnvironmentSpec.make(env),
+                config=args.agent_config,
+                seed=args.seed,
+                discount=args.discount,
+            )
 
-        if args.init_from_checkpoint is not None:
-            ckpt_exp = Experiment(Path(args.init_from_checkpoint)).assert_exists()
-            agent = ckpt_exp.restore_checkpoint(agent)
+            if args.init_from_checkpoint is not None:
+                raise NotImplementedError(
+                    "Initializing from a checkpoint is not supported for the torch version of SAC."
+                )
+        else:
+            agent = SAC.initialize(
+                spec=specs.EnvironmentSpec.make(env),
+                config=args.agent_config,
+                seed=args.seed,
+                discount=args.discount,
+            )
+
+            if args.init_from_checkpoint is not None:
+                ckpt_exp = Experiment(Path(args.init_from_checkpoint)).assert_exists()
+                agent = ckpt_exp.restore_checkpoint(agent)
 
         return agent
 
@@ -165,7 +181,7 @@ def main(args: Args) -> None:
 
     # Run training in a background thread.
     pool.submit(
-        train_loop,
+        print_exception_wrapper(train_loop),
         experiment=experiment,
         env_fn=env_fn,
         agent_fn=agent_fn,

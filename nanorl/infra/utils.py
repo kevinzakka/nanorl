@@ -7,7 +7,7 @@ import signal
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 import dm_env
 import dm_env_wrappers as wrappers
 
@@ -115,3 +115,13 @@ def wrap_env(
     env = wrappers.DmControlWrapper(env)
 
     return env
+
+def print_exception_wrapper(fn: Callable) -> Callable:
+    """Wraps a function to print exceptions."""
+    def _fn(**kwargs):
+        try:
+            return fn(**kwargs)
+        except Exception as e:
+            import traceback
+            print(traceback.format_exc())
+    return _fn
